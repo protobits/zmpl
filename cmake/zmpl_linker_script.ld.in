@@ -1,0 +1,18 @@
+/*
+ * Copyright (c) 2020 The ZMK Contributors
+ *
+ * SPDX-License-Identifier: MIT
+ */
+ 
+#include <linker/linker-defs.h>
+
+#ifdef CONFIG_BOARD_NATIVE_POSIX
+zmpl_subscriber_sections : 
+{
+#endif
+
+@ZMPL_SUBSCRIBER_SECTIONS@
+
+#ifdef CONFIG_BOARD_NATIVE_POSIX
+}
+#endif

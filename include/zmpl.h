@@ -27,7 +27,7 @@ struct zmpl_topic
 #ifdef CONFIG_BOARD_NATIVE_POSIX
 #define _ZMPL_STRUCT_ALIGN 64
 #else
-#define _ZMPL_STRUCT_ALIGN 8
+#define _ZMPL_STRUCT_ALIGN 4
 #endif
 
 struct zmpl_subscriber
@@ -58,6 +58,7 @@ extern const struct zmpl_topic __stop__zmpl_topics[];
 /* Auxiliary macros */
 
 #define _SLASH_JOIN(component) "/" STRINGIFY(component)
+#define _UNDERSCORE_JOIN(component) _CONCAT(_, component)
 
 /* Convert topic from individual components to string joined with '/':
  *   ZMPL_TOPIC_NAME(a,b,c) = "/a/b/c"
@@ -67,7 +68,10 @@ extern const struct zmpl_topic __stop__zmpl_topics[];
 /* Convert topic from individual components to token joined by '_':
   *   ZMPL_TOPIC(a,b,c) = a_b_c
   */
-#define ZMPL_TOPIC(topic_components) FOR_EACH(IDENTITY,(_),topic_components)
+#define ZMPL_TOPIC(topic_components...) \
+  COND_CODE_0(NUM_VA_ARGS_LESS_1(topic_components), \
+    (topic_components), \
+    (_CONCAT(GET_ARG_N(1, topic_components), MACRO_MAP_CAT(_UNDERSCORE_JOIN, GET_ARGS_LESS_N(1, topic_components)))))
 
 /* Convert topic from individual components to corresponding subscriber identifier:
   *   ZMPL_SUBSCRIBER_IDENTIFIER(a,b,c) = __zmpl_subscribers_a_b_c
@@ -81,7 +85,7 @@ extern const struct zmpl_topic __stop__zmpl_topics[];
 
  /* Static topic definition:
   *
-  *   Example: ZMPL_TOPIC_DEFINE(struct battery_state_msg, ZMPL_TOPIC(battery_controller, state))
+  *   Example: ZMPL_TOPIC_DEFINE(struct battery_state_msg, battery_controller, state)
   *     This corresponds to a /battery_controller/state topic, used to send 'struct battery_state_msg'
   *     instances.
   *
@@ -94,13 +98,13 @@ extern const struct zmpl_topic __stop__zmpl_topics[];
 #define ZMPL_TOPIC_DEFINE(msg_type, topic_components...) \
   extern struct zmpl_subscriber _CONCAT(__start_,ZMPL_SUBSCRIBER_IDENTIFIER(topic_components))[]; \
   extern const struct zmpl_subscriber _CONCAT(__stop_,ZMPL_SUBSCRIBER_IDENTIFIER(topic_components))[]; \
-  static const struct zmpl_topic ZMPL_TOPIC_IDENTIFIER(topic_components) \
-    __used __attribute__((__section__("__zmpl_topics"))) \
-      = { .name = ZMPL_TOPIC_NAME(topic_components), \
-          .msg_size = sizeof(msg_type), \
-          .subscribers_start = _CONCAT(__start_,ZMPL_SUBSCRIBER_IDENTIFIER(topic_components)), \
-          .subscribers_end = _CONCAT(__stop_,ZMPL_SUBSCRIBER_IDENTIFIER(topic_components)), \
-        };
+  const struct zmpl_topic ZMPL_TOPIC_IDENTIFIER(topic_components) \
+    __used __attribute__((__section__("__zmpl_topics"))) = \
+      { .name = ZMPL_TOPIC_NAME(topic_components), \
+        .msg_size = sizeof(msg_type), \
+        .subscribers_start = _CONCAT(__start_,ZMPL_SUBSCRIBER_IDENTIFIER(topic_components)), \
+        .subscribers_end = _CONCAT(__stop_,ZMPL_SUBSCRIBER_IDENTIFIER(topic_components)), \
+      };
 
 /* Static subscriber definition:
  *   Example: ZMPL_SUBSCRIBER_DEFINE(sub1, struct battery_state_msg, 10, ZMPL_TOPIC(battery_controller, state))

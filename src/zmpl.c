@@ -26,6 +26,9 @@ void zmpl_publish(struct zmpl_publisher* pub, void* msg)
   __ASSERT((size_t)((uint8_t*)pub->topic->subscribers_end - (uint8_t*)pub->topic->subscribers_start) % sizeof(struct zmpl_subscriber) == 0,
     "no padding inserted by linker (apropriate struct zmpl_subscriber alignment for platform)");
 
+  /*__ASSERT((size_t)((uint8_t*)pub->topic->subscribers_end - (uint8_t*)pub->topic->subscribers_start) % sizeof(struct zmpl_subscriber) == 0,
+    "no padding inserted by linker (apropriate struct zmpl_subscriber alignment for platform)");*/
+
   for (sub = pub->topic->subscribers_start; sub != pub->topic->subscribers_end; sub++)
   {
     ret = k_msgq_put(&sub->queue, msg, pub->mode == ZMPL_BLOCKING ? K_FOREVER : K_NO_WAIT);

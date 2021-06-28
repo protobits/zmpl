@@ -13,26 +13,26 @@ struct msg_type_b
   uint8_t b;
 } __aligned(4);
 
-/* Setup /topic_a and /topic_b, each with its own datatype */
+/* Setup /base/topic_a and /base/topic_b, each with its own datatype */
 
-ZMPL_TOPIC_DEFINE(struct msg_type_a, ZMPL_TOPIC(topic_a));
-ZMPL_TOPIC_DEFINE(struct msg_type_b, ZMPL_TOPIC(topic_b));
+ZMPL_TOPIC_DEFINE(struct msg_type_a, base, topic_a);
+ZMPL_TOPIC_DEFINE(struct msg_type_b, base, topic_b);
 
 /* Setup two publishers and three subscribers on both topics */
 
-ZMPL_SUBSCRIBER_DEFINE(sub1, struct msg_type_a, 10, ZMPL_TOPIC(topic_a));
-ZMPL_SUBSCRIBER_DEFINE(sub2, struct msg_type_a, 10, ZMPL_TOPIC(topic_a));
-ZMPL_SUBSCRIBER_DEFINE(sub3, struct msg_type_a, 10, ZMPL_TOPIC(topic_a));
+ZMPL_SUBSCRIBER_DEFINE(sub1, struct msg_type_a, 10, ZMPL_TOPIC(base, topic_a));
+ZMPL_SUBSCRIBER_DEFINE(sub2, struct msg_type_a, 10, ZMPL_TOPIC(base, topic_a));
+ZMPL_SUBSCRIBER_DEFINE(sub3, struct msg_type_a, 10, ZMPL_TOPIC(base, topic_a));
 
-ZMPL_PUBLISHER_DEFINE(pub1, struct msg_type_a, 10, ZMPL_TOPIC(topic_a));
-ZMPL_PUBLISHER_DEFINE(pub2, struct msg_type_a, 10, ZMPL_TOPIC(topic_a));
+ZMPL_PUBLISHER_DEFINE(pub1, struct msg_type_a, 10, ZMPL_TOPIC(base, topic_a));
+ZMPL_PUBLISHER_DEFINE(pub2, struct msg_type_a, 10, ZMPL_TOPIC(base, topic_a));
 
-ZMPL_SUBSCRIBER_DEFINE(sub4, struct msg_type_b, 10, ZMPL_TOPIC(topic_b));
-ZMPL_SUBSCRIBER_DEFINE(sub5, struct msg_type_b, 10, ZMPL_TOPIC(topic_b));
-ZMPL_SUBSCRIBER_DEFINE(sub6, struct msg_type_b, 10, ZMPL_TOPIC(topic_b));
+ZMPL_SUBSCRIBER_DEFINE(sub4, struct msg_type_b, 10, ZMPL_TOPIC(base, topic_b));
+ZMPL_SUBSCRIBER_DEFINE(sub5, struct msg_type_b, 10, ZMPL_TOPIC(base, topic_b));
+ZMPL_SUBSCRIBER_DEFINE(sub6, struct msg_type_b, 10, ZMPL_TOPIC(base, topic_b));
 
-ZMPL_PUBLISHER_DEFINE(pub3, struct msg_type_b, 10, ZMPL_TOPIC(topic_b));
-ZMPL_PUBLISHER_DEFINE(pub4, struct msg_type_b, 10, ZMPL_TOPIC(topic_b));
+ZMPL_PUBLISHER_DEFINE(pub3, struct msg_type_b, 10, ZMPL_TOPIC(base, topic_b));
+ZMPL_PUBLISHER_DEFINE(pub4, struct msg_type_b, 10, ZMPL_TOPIC(base, topic_b));
 
 void test_static_pubsub(void)
 {
@@ -170,13 +170,27 @@ void test_static_poll(void)
 
 void test_get_topic(void)
 {
-  zassert_true(zmpl_get_topic(ZMPL_TOPIC_NAME(topic_a)) == sub1.topic, "get_topic");
-  zassert_true(zmpl_get_topic(ZMPL_TOPIC_NAME(topic_b)) == sub4.topic, "get_topic");
+  zassert_equal(zmpl_get_topic(ZMPL_TOPIC_NAME(base, topic_a)), sub1.topic, "get_topic for %s", ZMPL_TOPIC_NAME(base, topic_a));
+  zassert_equal(zmpl_get_topic(ZMPL_TOPIC_NAME(base, topic_b)), sub4.topic, "get_topic for %s", ZMPL_TOPIC_NAME(base, topic_b));
+}
+
+void test_macros(void)
+{
+  zassert_equal(STRINGIFY(ZMPL_TOPIC(a)), "a", "ZMPL_TOPIC (single argument): %s", STRINGIFY(ZMPL_TOPIC(a)));
+  zassert_equal(STRINGIFY(ZMPL_TOPIC(a, b)), "a_b", "ZMPL_TOPIC (two arguments): %s", STRINGIFY(ZMPL_TOPIC(a, b)));
+  zassert_equal(STRINGIFY(ZMPL_TOPIC(a, b, c)), "a_b_c", "ZMPL_TOPIC (two arguments): %s", STRINGIFY(ZMPL_TOPIC(a, b, c)));
+  zassert_equal(STRINGIFY(ZMPL_TOPIC(a, b, c, d)), "a_b_c_d", "ZMPL_TOPIC (multiple arguments): %s", STRINGIFY(ZMPL_TOPIC(a, b, c, d)));
+  zassert_equal(STRINGIFY(ZMPL_TOPIC(a, b, c, d, e)), "a_b_c_d_e", "ZMPL_TOPIC (multiple arguments): %s", STRINGIFY(ZMPL_TOPIC(a, b, c, d, e)));
+
+  zassert_equal(ZMPL_TOPIC_NAME(a), "/a", "ZMPL_TOPIC_NAME(a): %s", ZMPL_TOPIC_NAME(a));
+  zassert_equal(ZMPL_TOPIC_NAME(a, b), "/a/b", "ZMPL_TOPIC_NAME(a, b): %s", ZMPL_TOPIC_NAME(a, b));
+  zassert_equal(ZMPL_TOPIC_NAME(a, b, c), "/a/b/c", "ZMPL_TOPIC_NAME(a, b, c): %s", ZMPL_TOPIC_NAME(a, b, c));
 }
 
 void test_main(void)
 {
   ztest_test_suite(zmpl,
+    ztest_unit_test(test_macros),
     ztest_unit_test(test_static_pubsub),
     ztest_unit_test(test_static_poll),
     ztest_unit_test(test_get_topic)

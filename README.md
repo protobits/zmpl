@@ -41,4 +41,7 @@ Documentation is mostly in `zmpl.h` file. Also look at `prj.conf` to see which o
   operation is non blocking but at the same time a worker thread is used to move messages from this queue
   to the subscriber's queues (this would still require message discarding otherwise the worker could
   still hang waiting for space and the publisher also hang waiting for the worker).
+- If you define a topic you need to define at least one subscriber for it: this is needed since a topic definition
+  requires to be mapped during link time to the internal static array of subscribers. If there are no subscribers,
+  you will get linker errors such as "undefined reference to __start___zmpl_subscribers_<topic>". 
  
