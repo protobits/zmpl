@@ -1,0 +1,17 @@
+name: zmpl
+build:
+  cmake: .
+#  kconfig: Kconfig
+#  settings:
+#    board_root: .
+#    dts_root: .
+#    soc_root: .
+#    arch_root: .
+#    module_ext_root: .
+## These are needed for twister to run tests:
+#samples:
+#  - samples
+#tests:
+#  - tests
+#boards:
+#  - boards
