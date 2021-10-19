@@ -30,10 +30,13 @@ struct zmpl_topic
 #define _ZMPL_STRUCT_ALIGN 4
 #endif
 
+typedef void (*zmpl_msg_callback)(struct zmpl_subscriber* sub);
+
 struct zmpl_subscriber
 {
-  const struct zmpl_topic* topic;
+  const struct zmpl_topic* const topic;
   struct k_msgq queue;
+  zmpl_msg_callback callback;
 } __aligned(_ZMPL_STRUCT_ALIGN);
 
 enum zmpl_publish_mode
@@ -45,7 +48,7 @@ enum zmpl_publish_mode
 
 struct zmpl_publisher
 {
-  const struct zmpl_topic* topic;
+  const struct zmpl_topic* const topic;
   struct k_msgq queue; /* Not used yet */
   enum zmpl_publish_mode mode;
 } __aligned(_ZMPL_STRUCT_ALIGN);
@@ -107,14 +110,14 @@ extern const struct zmpl_topic __stop__zmpl_topics[];
       };
 
 /* Static subscriber definition:
- *   Example: ZMPL_SUBSCRIBER_DEFINE(sub1, struct battery_state_msg, 10, ZMPL_TOPIC(battery_controller, state))
+ *   Example: ZMPL_SUBSCRIBER_DEFINE(sub1, struct battery_state_msg, 10, callback, ZMPL_TOPIC(battery_controller, state))
  *     Defines a "struct zmpl_subscriber sub1" for topic /battery_controller/state and an outgoig queue of size 10.
  *
  * This macro defines the instance as a read-write struct (since the queue is mutable) and also declares a static
  * buffer for the underlying queue.
  */
 
-#define ZMPL_SUBSCRIBER_DEFINE(subscriber, msg_type, queue_size, topic_components...) \
+#define ZMPL_SUBSCRIBER_DEFINE(subscriber, msg_type, queue_size, cb, topic_components...) \
   extern const struct zmpl_topic ZMPL_TOPIC_IDENTIFIER(topic_components); \
   static msg_type __noinit _CONCAT(__zmpl_subscriber_data_, subscriber)[queue_size]; \
   struct zmpl_subscriber subscriber \
@@ -122,6 +125,7 @@ extern const struct zmpl_topic __stop__zmpl_topics[];
   { \
     .topic = &ZMPL_TOPIC_IDENTIFIER(topic_components), \
     .queue = Z_MSGQ_INITIALIZER(subscriber.queue, (char*)_CONCAT(__zmpl_subscriber_data_, subscriber), sizeof(msg_type), queue_size), \
+    .callback = cb \
   };
 
 /* Static publisher definition:
@@ -138,17 +142,42 @@ extern const struct zmpl_topic __stop__zmpl_topics[];
   { \
     .topic = &ZMPL_TOPIC_IDENTIFIER(topic_components), \
     .queue = Z_MSGQ_INITIALIZER(publisher.queue, (char*)_CONCAT(__zmpl_publisher_data_, publisher), sizeof(msg_type), queue_size), \
+    .mode = ZMPL_BLOCKING \
   };
+
+#define _ZMPL_ADDRESS_OF(var) &var
+
+/* Initializer for static subscriber list of pointers:
+ *
+ *  Examples: struct zmpl_subscriber* const sub_list[] = { ZMPL_SUBSCRIBER_LIST_INITIALIZER(sub1, sub2, sub3) };
+ */
+
+#define ZMPL_SUBSCRIBER_LIST_INITIALIZER(subscribers...) \
+  FOR_EACH(_ZMPL_ADDRESS_OF, (,), subscribers)
 
 #define _ZMPL_POLL_EVENT_INIT(sub) K_POLL_EVENT_STATIC_INITIALIZER(K_POLL_TYPE_MSGQ_DATA_AVAILABLE, K_POLL_MODE_NOTIFY_ONLY, &sub.queue, 0)
 
  /* Initializer for static struct k_poll_event[].
   *
-  *  Example: struct k_poll_event[] = { ZMPL_POLL_EVENT_INITIALIZER(sub1, sub2, sub3) };
+  *  Example:
+  *    struct k_poll_event pe[] = { ZMPL_POLL_EVENT_INITIALIZER(sub1, sub2, sub3) };
   */
 
 #define ZMPL_POLL_EVENT_INITIALIZER(subscribers...) \
-    FOR_EACH(_ZMPL_POLL_EVENT_INIT, (,), subscribers)
+  FOR_EACH(_ZMPL_POLL_EVENT_INIT, (,), subscribers)
+
+/* Convenience macro which defines both the subscriber list and poll event array
+ * directly. This allows only listing subscribers once and is mostly useful when k_poll()
+ * is used only on subscribers and nothing else.
+ *
+ * Example:
+ *   ZMPL_SUBSCRIBER_LIST_DEFINE(list, pe, sub1, sub2, sub3);
+ *   zmpl_handle_messages(list, pe, ARRAY_SIZE(list));
+ */
+
+#define ZMPL_SUBSCRIBER_LIST_DEFINE(list, pe, subscribers...) \
+  struct zmpl_subscriber* const list[] = { ZMPL_SUBSCRIBER_LIST_INITIALIZER(subscribers) }; \
+  struct k_poll_event pe[] = { ZMPL_POLL_EVENT_INITIALIZER(subscribers) }
 
 #ifdef __cplusplus
 extern "C"
@@ -168,6 +197,25 @@ void zmpl_publish(struct zmpl_publisher* pub, void* msg);
  */
 
 const struct zmpl_topic* zmpl_get_topic(const char* topic);
+
+/* Go through each entry in the subscriber list and
+ * invoke the callback for each subscriber (if not NULL) which appears to have
+ * pending messages according to its poll event state.
+ * It is up to the callback to retrieve the pending message on the queue
+ * (or all, or purge it, etc.). Note that if this step blocks, this whole function
+ * will block.
+ * After each call, the corresponding poll event entry will be reset to the
+ * unready state (so that poll can be directly called afterwards).
+ */
+
+void zmpl_handle_messages(struct zmpl_subscriber* const sub_list[],
+  struct k_poll_event* pe, size_t num_events);
+
+
+/* Convenience method which invokes k_poll and then zmpl_handle_messages */
+
+int zmpl_spin_once(struct zmpl_subscriber* const sub_list[],
+  struct k_poll_event* pe, size_t num_events, k_timeout_t timeout);
 
 #if 0
 /* Dynamic advertise/subscribe support */
