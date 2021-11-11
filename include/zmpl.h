@@ -15,29 +15,14 @@ struct zmpl_topic
   const struct zmpl_subscriber* subscribers_end;
 };
 
-/* NOTE: since the placement of these structs in memory will be done
- * by the linker and the linker decides how to align these in memory
- * (potentially leaving gaps between elements), we need to add padding
- * to the structs to fill these holes. To do so, we instruct the compiler
- * to align these to the require size, depending on platform
- */
-
-/* TODO: check if these alignments work on other platforms */
-
-#ifdef CONFIG_BOARD_NATIVE_POSIX
-#define _ZMPL_STRUCT_ALIGN 64
-#else
-#define _ZMPL_STRUCT_ALIGN 4
-#endif
-
 typedef void (*zmpl_msg_callback)(struct zmpl_subscriber* sub);
 
 struct zmpl_subscriber
 {
   const struct zmpl_topic* const topic;
-  struct k_msgq queue;
   zmpl_msg_callback callback;
-} __aligned(_ZMPL_STRUCT_ALIGN);
+  struct k_msgq queue;  
+};
 
 enum zmpl_publish_mode
 {
@@ -49,9 +34,9 @@ enum zmpl_publish_mode
 struct zmpl_publisher
 {
   const struct zmpl_topic* const topic;
-  struct k_msgq queue; /* Not used yet */
   enum zmpl_publish_mode mode;
-} __aligned(_ZMPL_STRUCT_ALIGN);
+  struct k_msgq queue; /* Not used yet */
+};
 
 /* Section markers for topics */
 
@@ -102,7 +87,10 @@ extern const struct zmpl_topic __stop__zmpl_topics[];
   extern struct zmpl_subscriber _CONCAT(__start_,ZMPL_SUBSCRIBER_IDENTIFIER(topic_components))[]; \
   extern const struct zmpl_subscriber _CONCAT(__stop_,ZMPL_SUBSCRIBER_IDENTIFIER(topic_components))[]; \
   const struct zmpl_topic ZMPL_TOPIC_IDENTIFIER(topic_components) \
-    __used __attribute__((__section__("__zmpl_topics"))) = \
+    __used \
+    __section("__zmpl_topics") \
+    __aligned(__alignof__(struct zmpl_topic)) \
+    = \
       { .name = ZMPL_TOPIC_NAME(topic_components), \
         .msg_size = sizeof(msg_type), \
         .subscribers_start = _CONCAT(__start_,ZMPL_SUBSCRIBER_IDENTIFIER(topic_components)), \
@@ -115,13 +103,19 @@ extern const struct zmpl_topic __stop__zmpl_topics[];
  *
  * This macro defines the instance as a read-write struct (since the queue is mutable) and also declares a static
  * buffer for the underlying queue.
+ *
+ * NOTE: we require that the placement of the subscriber variable be within the required section AND with
+ * the underlying's struct alignment. This ensures all subscribers for this topic are placed contiguously
+ * in memory within the section (so that we can iterate it as an array within __start/__stop symbols).
  */
 
 #define ZMPL_SUBSCRIBER_DEFINE(subscriber, msg_type, queue_size, cb, topic_components...) \
   extern const struct zmpl_topic ZMPL_TOPIC_IDENTIFIER(topic_components); \
   static msg_type __noinit _CONCAT(__zmpl_subscriber_data_, subscriber)[queue_size]; \
   struct zmpl_subscriber subscriber \
-    __used __attribute__((__section__(STRINGIFY(ZMPL_SUBSCRIBER_IDENTIFIER(topic_components))))) = \
+    __used \
+    __section(STRINGIFY(ZMPL_SUBSCRIBER_IDENTIFIER(topic_components))) \
+    __aligned(__alignof__(struct zmpl_subscriber)) = \
   { \
     .topic = &ZMPL_TOPIC_IDENTIFIER(topic_components), \
     .queue = Z_MSGQ_INITIALIZER(subscriber.queue, (char*)_CONCAT(__zmpl_subscriber_data_, subscriber), sizeof(msg_type), queue_size), \
