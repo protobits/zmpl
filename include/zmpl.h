@@ -132,7 +132,7 @@ extern const struct zmpl_topic __stop__zmpl_topics[];
 #define ZMPL_PUBLISHER_DEFINE(publisher, msg_type, queue_size, topic_components...) \
   extern const struct zmpl_topic ZMPL_TOPIC_IDENTIFIER(topic_components); \
   static msg_type __noinit _CONCAT(__zmpl_publisher_data_, publisher)[queue_size]; \
-  struct zmpl_publisher publisher = \
+  static struct zmpl_publisher publisher = \
   { \
     .topic = &ZMPL_TOPIC_IDENTIFIER(topic_components), \
     .queue = Z_MSGQ_INITIALIZER(publisher.queue, (char*)_CONCAT(__zmpl_publisher_data_, publisher), sizeof(msg_type), queue_size), \
